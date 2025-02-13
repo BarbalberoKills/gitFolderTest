@@ -1,16 +1,26 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
 
-func swap(a, b *int) {
+	"github.com/BarbalberoKills/gitFolderTest/userinput"
+)
+
+func swap[T userinput.AnyValue](a, b *T) {
 	*a, *b = *b, *a
 }
 
 func main() {
 
-	var first, second = 5, 299
+	var prompt string
 
-	fmt.Println(first, second)
+	prompt = "Give me your first value"
+	first := userinput.GetUserValue[float64](&prompt)
+
+	prompt = "Give me your second value"
+	second := userinput.GetUserValue[float64](&prompt)
+
+	fmt.Println("Before the swap - ", first, second)
 	swap(&first, &second)
-	fmt.Println(first, second)
+	fmt.Println("After the swap - ", first, second)
 }

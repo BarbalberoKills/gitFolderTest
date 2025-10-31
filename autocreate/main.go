@@ -15,18 +15,27 @@ type Node struct {
 	Children []*Node
 }
 
+type Params struct {
+	Dry      *bool
+	Content  *string
+	Ext      *string
+	Filename string
+}
+
 func main() {
-	list, path, content, fileType, dry := getParams()
+	params := Params{}
+	params.getParams()
+	list, rootPath := readFile(os.Args[len(os.Args)-1])
 
 	root := Node{
 		Name:   "root",
 		Indent: -1,
-		Path:   path,
+		Path:   *rootPath,
 	}
 
 	stack := []*Node{&root}
 
-	for _, line := range list {
+	for _, line := range *list {
 		name, indent := indentCount(line)
 
 		for indent <= stack[len(stack)-1].Indent {
@@ -50,43 +59,41 @@ func main() {
 	}
 
 	for _, child := range root.Children {
-		child.Maker(content, fileType, dry)
+		child.Maker(&params)
 	}
 }
 
-func getParams() ([]string, string, string, string, bool) {
-	dry := flag.Bool("dry", false, "Simulation mode")
-	content := flag.String("content", "", "Content to write")
-	fileType := flag.String("ext", "", "File extension")
+func (p *Params) getParams() {
+	p.Dry = flag.Bool("dry", false, "Simulation mode")
+	p.Content = flag.String("content", "", "Content to write")
+	p.Ext = flag.String("ext", "", "File extension")
 	flag.Parse()
+	p.Filename = flag.Arg(0)
 
-	os.Args = os.Args[1:]
-
-	if *dry {
-		os.Args = os.Args[1:]
-	}
-	if *content != "" {
-		os.Args = os.Args[1:]
-	}
-	if *fileType != "" {
-		os.Args = os.Args[1:]
-		*fileType = "." + *fileType
-	}
-
-	if len(os.Args) < 1 {
-		fmt.Println("Missing arguments")
-		fmt.Println("Usage: treebuild [-dry] [-content] [-ext] <filename>")
-		os.Exit(1)
-	} else if len(os.Args) > 1 {
-		fmt.Println("Too many arguments")
+	if len(flag.Args()) != 1 {
+		fmt.Println("Exactly one argument is required")
 		fmt.Println("Usage: treebuild [-dry] [-content] [-ext] <filename>")
 		os.Exit(1)
 	}
+}
 
-	list, path := getFile(os.Args[len(os.Args)-1])
+func readFile(passedFile string) (*[]string, *string) {
+	file, err := os.Open(passedFile)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 
-	return list, path, *content, *fileType, *dry
+	filePath := filepath.Dir(file.Name())
 
+	var list []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		list = append(list, scanner.Text())
+	}
+	defer file.Close()
+
+	return &list, &filePath
 }
 
 func indentCount(line string) (string, int) {
@@ -102,32 +109,34 @@ func indentCount(line string) (string, int) {
 	return name, indent
 }
 
-func (n *Node) Maker(content, fileType string, dry bool) {
+func (n *Node) Maker(p *Params) {
 	if len(n.Children) == 0 {
-		touch(n.Path, n.Name, fileType, content, dry)
+		touch(n.Path, n.Name, *p.Ext, *p.Content, *p.Dry)
 	} else {
-		makeFolder(n.Path, n.Name, dry)
+		makeFolder(n.Path, n.Name, *p.Dry)
 	}
 	for _, child := range n.Children {
-		child.Maker(content, fileType, dry)
+		child.Maker(p)
 	}
 }
 
-func getFile(passedFile string) ([]string, string) {
-	file, err := os.Open(passedFile)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+func touch(path, name, ext, content string, dry bool) {
+	if ext != "" {
+		ext = "." + ext
 	}
-
-	list := []string{}
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		list = append(list, scanner.Text())
+	fileName := path + "/" + name + ext
+	if !dry {
+		err := os.WriteFile(fileName, []byte(content), 0755)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
 	}
-	defer file.Close()
-
-	return list, filepath.Dir(file.Name())
+	if content != "" {
+		fmt.Println("Created file: \"" + fileName + "\" with content: \"" + content + "\"")
+	} else {
+		fmt.Println("Created file: \"" + fileName + "\"")
+	}
 }
 
 func makeFolder(path, name string, dry bool) {
@@ -139,23 +148,5 @@ func makeFolder(path, name string, dry bool) {
 			os.Exit(1)
 		}
 	}
-	fmt.Println("")
-	fmt.Println("Created folder: " + folderName)
-}
-
-func touch(path, name, ext, content string, dry bool) {
-	fileName := path + "/" + name + ext
-	if !dry {
-		err := os.WriteFile(fileName, []byte(content), 0755)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-	}
-	if content != "" {
-		fmt.Println("Created file: " + fileName + " with content" + content)
-	} else {
-		fmt.Println("")
-		fmt.Println("Created file: " + fileName)
-	}
+	fmt.Println("Created folder: \"" + folderName + "\"")
 }

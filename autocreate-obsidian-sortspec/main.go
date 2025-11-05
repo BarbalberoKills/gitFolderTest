@@ -4,6 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 )
 
 // Essendo una roba valida per tutto e' buona idea dichiararla come costante. Easy to manipulate
@@ -122,21 +124,27 @@ func folderInspector(foldersToEvaluate []string) []*Folder {
 	return folders
 }
 
-func touch(path, name, ext, content string, dry bool) {
-	if ext != "" {
+func createSortspecFile(path, name, ext, content string, dry bool) error {
+	// Cleanly handle the extension.
+	if ext != "" && !strings.HasPrefix(ext, ".") {
 		ext = "." + ext
 	}
-	fileName := path + "/" + name + ext
-	if !dry {
-		err := os.WriteFile(fileName, []byte(content), 0755)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
+
+	// Use filepath.Join for cross platform safety. Se cambi da linux a windows a mac it still works
+	fileName := filepath.Join(path, name+ext)
+
+	// avoid nested ifs it's clearer to read.
+	if dry {
+		fmt.Printf("[DRY RUN] Would create file: \"%s\" with content:\n%s\n---\n", fileName, content)
+		return nil
 	}
-	if content != "" {
-		fmt.Println("Created file: \"" + fileName + "\" with content: \"" + content + "\"")
-	} else {
-		fmt.Println("Created file: \"" + fileName + "\"")
+
+	// Write the file with 0644 permissions (standard for data files).
+	err := os.WriteFile(fileName, []byte(content), 0644)
+	if err != nil {
+		return err // Return the error, don't exit.
 	}
+
+	fmt.Printf("Created file: \"%s\"\n", fileName)
+	return nil
 }

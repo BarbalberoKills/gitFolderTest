@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -122,6 +123,65 @@ func folderInspector(foldersToEvaluate []string) []*Folder {
 		folders[len(folders)-1].Children = children
 	}
 	return folders
+}
+
+// walkFolders qui ho usato filepath.WalkDir to recursively find all directories
+// under the root path and return them as a list of *Folder. cosi lui fa l'heavy lifting.
+func walkFolders(root string) ([]*Folder, error) {
+	var folders []*Folder
+
+	// Walkdir e' quite powerfull you can define a function that gets executed for each folder he finds.
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err // Propagate errors we encounter.
+		}
+		if !d.IsDir() {
+			return nil // We only care about directories
+		}
+
+		// We found a directory, now read its immediate children.
+		entries, err := os.ReadDir(path)
+		if err != nil {
+			return fmt.Errorf("could not read dir %s: %w", path, err)
+		}
+
+		var children []string
+		for _, entry := range entries {
+			children = append(children, entry.Name())
+		}
+
+		folders = append(folders, &Folder{
+			Path:     path,
+			Children: children,
+		})
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return folders, nil
+}
+
+// readSingleFolder reads just the specified path and returns it
+// as a single element list of *Folder.
+func readSingleFolder(path string) ([]*Folder, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return nil, fmt.Errorf("could not read dir %s: %w", path, err)
+	}
+
+	var children []string
+	for _, entry := range entries {
+		children = append(children, entry.Name())
+	}
+
+	folder := &Folder{
+		Path:     path,
+		Children: children,
+	}
+
+	return []*Folder{folder}, nil
 }
 
 func createSortspecFile(path, name, ext, content string, dry bool) error {

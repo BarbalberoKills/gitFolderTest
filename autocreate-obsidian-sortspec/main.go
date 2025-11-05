@@ -54,6 +54,7 @@ func processFolders(p Params) error {
 	return nil
 }
 
+// come al solito ci sono eccezioni alle regole. qui visto che interagisci con l'input utente e very likely there is nothing to test here puoi exitare diretamente qui. At this point you haven't done much os no problem in ending the program.
 func (p *Params) getParams() {
 	p.Dry = flag.Bool("dry", false, "Simulation mode")
 	p.Recursive = flag.Bool("recursive", false, "Recursive run")
@@ -69,6 +70,7 @@ func (p *Params) getParams() {
 
 	flag.Parse()
 
+	// qui non ero sicuro in realta' tu cosa ti aspetti di passare come content. se un header diverso o proprio un contenuto passato al fly
 	if *contentPtr != "" {
 		p.Content = *contentPtr
 	} else {

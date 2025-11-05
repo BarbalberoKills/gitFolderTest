@@ -6,11 +6,12 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
 // Essendo una roba valida per tutto e' buona idea dichiararla come costante. Easy to manipulate
-const DefaultHeader = "---\nsorting-spec: |-\n sortspec"
+const DefaultHeader = "---\nsorting-spec: |-\n  sortspec"
 
 type Params struct {
 	Dry       *bool
@@ -40,20 +41,44 @@ func main() {
 	}
 }
 
-// wip
+// processFolders takes care of writing the specfiles from a list of folders
 func processFolders(p Params) error {
-	//foldersToEvaluate := []string{params.Filename}
-	//folders := folderInspector(foldersToEvaluate)
+	var folders []*Folder
+	var err error
 
-	//for _, f := range folders {
-	//	content := "---\nsorting-spec: |-\n  sortspec"
-	//	sort.Strings(f.Children)
-	//	for _, i := range f.Children {
-	//		content += "\n  " + strings.Split(i, ".")[0]
-	//	}
-	//	content += "\n---"
-	//	touch(f.Path, "sortspec", *params.Ext, content, *params.Dry)
-	//}
+	if *p.Recursive {
+		folders, err = walkFolders(p.Filename)
+	} else {
+		folders, err = readSingleFolder(p.Filename)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to read folders: %w", err)
+	}
+
+	// Create the sortspec file for each folder found.
+	for _, f := range folders {
+		// Use strings.Builder for efficient string concatenation.
+		var content strings.Builder
+
+		content.WriteString(p.Content)
+
+		sort.Strings(f.Children)
+
+		// Add each child's base name to the content.
+		for _, childName := range f.Children {
+			// A safer, more robust way to get the name without the extension.
+			base := filepath.Base(childName)
+			name := strings.TrimSuffix(base, filepath.Ext(base))
+			content.WriteString("\n  " + name)
+		}
+		content.WriteString("\n---")
+
+		err := createSortspecFile(f.Path, "sortspec", *p.Ext, content.String(), *p.Dry)
+		if err != nil {
+			// Don't exit here; just report the error up the chain.
+			return fmt.Errorf("failed to create file in %s: %w", f.Path, err)
+		}
+	}
 	return nil
 }
 
@@ -99,30 +124,6 @@ func (p *Params) getParams() {
 		fmt.Fprintf(os.Stderr, "Error: Argument %s is not a directory.\n", p.Filename)
 		os.Exit(1)
 	}
-}
-
-func folderInspector(foldersToEvaluate []string) []*Folder {
-	folders := []*Folder{}
-	for len(foldersToEvaluate) != 0 {
-		files, err := os.ReadDir(foldersToEvaluate[len(foldersToEvaluate)-1])
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-		folders = append(folders, &Folder{Path: foldersToEvaluate[len(foldersToEvaluate)-1]})
-
-		foldersToEvaluate = foldersToEvaluate[:len(foldersToEvaluate)-1]
-		var children []string
-
-		for _, f := range files {
-			children = append(children, f.Name())
-			if f.Type().IsDir() {
-				foldersToEvaluate = append(foldersToEvaluate, folders[len(folders)-1].Path+"/"+f.Name())
-			}
-		}
-		folders[len(folders)-1].Children = children
-	}
-	return folders
 }
 
 // walkFolders qui ho usato filepath.WalkDir to recursively find all directories

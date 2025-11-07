@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 type Params struct {
@@ -21,6 +23,19 @@ type Folder struct {
 	Children []string
 }
 
+type SortContent struct {
+	SortingSpec string `yaml:"sorting-spec"`
+}
+
+type MyBuffer struct {
+	buf []byte
+}
+
+func (m *MyBuffer) Write(p []byte) (int, error) {
+	m.buf = p
+	return 0, nil
+}
+
 func main() {
 	var params Params
 	params.getParams()
@@ -28,14 +43,39 @@ func main() {
 	foldersToEvaluate := []string{params.Filename}
 	folders := folderInspector(foldersToEvaluate)
 
+	var mybuf MyBuffer
+
+	var buffer bytes.Buffer
 	for _, f := range folders {
-		content := "---\nsorting-spec: |-\n  sortspec"
-		sort.Strings(f.Children)
-		for _, i := range f.Children {
-			content += "\n  " + strings.Split(i, ".")[0]
+		enc := yaml.NewEncoder(&mybuf)
+		enc.SetIndent(2)
+		var sortContent SortContent
+		for j, i := range f.Children {
+			sortContent.SortingSpec += strings.Split(i, ".")[0]
+			if len(f.Children) > j+1 {
+				sortContent.SortingSpec += "\n"
+			}
 		}
-		content += "\n---"
-		touch(f.Path, "sortspec", *params.Ext, content, *params.Dry)
+
+		err := enc.Encode(&sortContent)
+		if err != nil {
+			fmt.Errorf("ERRORE GROSSO")
+		}
+		enc.Close()
+
+		fmt.Println(buffer.String())
+		yamlData := buffer.Bytes()
+		prefix := []byte("---\n")
+		sufix := []byte("---")
+
+		finalData := append(prefix, yamlData...)
+		finalData = append(finalData, sufix...)
+
+		err = os.WriteFile(f.Path+"/sortspec.md", finalData, 0644)
+		if err != nil {
+			fmt.Errorf("ALTRO ERRORE GROSSO")
+		}
+		buffer.Reset()
 	}
 }
 

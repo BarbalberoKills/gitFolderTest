@@ -196,7 +196,7 @@ func createSortspecFile(path, name, ext, content string, dry bool) error {
 
 	// avoid nested ifs it's clearer to read.
 	if dry {
-		fmt.Printf("[DRY RUN] Would create file: \"%s\" with content:\n%s\n---\n", fileName, content)
+		fmt.Printf("[DRY RUN] Would create file: \"%s\" with content:\n%s\n", fileName, content)
 		return nil
 	}
 
